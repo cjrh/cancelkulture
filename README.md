@@ -10,26 +10,46 @@ understand what it's doing.
 
 You know how in `asyncio` if you run something in a process pool executor
 using `run_executor()`, and then you try to cancel the task, but the
-underlying process doesn't actually stop?
+underlying process doesn't actually stop? Also, it's super annoying you 
+can't set a timeout on an executor job?
 
 LET'S FIX THAT
+
+#### Timeouts
+
 
 ```python
 import time
 import asyncio
-import cancelkulture
-
-
-exe = cancelkulture.ProcessPoolExecutor()
+from cancelkulture import ProcessPoolExecutor, ProcessCancelTimeout
 
 
 async def awork():
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        exe,
-        partial(time.sleep, 10.0),
-        cancelkulture.ProcessCancelTimeout(0.0),
-    )
+    return await loop.run_in_executor(ProcessPoolExecutor(), time.sleep, 10.0)
+
+
+async def main():
+    try:
+        await asyncio.wait_for(awork(), 5.0 
+    except asyncio.TimeoutError:
+        print('Timed out!')
+
+
+asyncio.run(main())
+```
+
+#### Cancellation
+
+```python
+import time
+import asyncio
+from cancelkulture import ProcessPoolExecutor, ProcessCancelTimeout
+
+
+async def awork():
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(ProcessPoolExecutor(), time.sleep, 10.0)
 
 
 async def main():
@@ -42,14 +62,14 @@ async def main():
     try:
         await t
     except asyncio.CancelledError:
-        pass
-
-    # Here, the job inside the executor is really gone,
-    # after 5 seconds, not 10.
+        print('Cancelled!')
 
 
 asyncio.run(main())
 ```
+
+Actually, there is also support for cancelling subprocesses in
+non-async code too.  Read on to explore further examples.
 
 ## How can this work?? Cancellation requires cooperative multitasking...
 
@@ -65,15 +85,17 @@ example is simply redeploying a new version of a running
 application. Yes, your app will get a SIGTERM from Kubernetes,
 but if you have blocking CPU code running within many nested
 processes, it's a lot of work to orchestrate a controlled
-shutdown. It's much easier to define idempotent work and
-design for restarts as necessary.
+shutdown, especially within the narrow time window before
+Kubernetes does a SIGKILL anyway.
+
+It's much easier to define idempotent work and design for
+restarts as necessary.
 
 ## What exactly is provided in this library?
 
-The first and most important thing is that this library is designed
-to compose with whatever you already have. Because I also have 
-existing code and I can't just replace the world with every new
-thing.
+I first want to point out that this library is designed to compose with
+whatever you already have. Because I too have existing code and I can't just
+replace the world with every new thing.
 
 Broadly, there are 3 features, and 3 supported use-cases. It's easier to go
 through the use-cases:
@@ -90,28 +112,25 @@ through the use-cases:
 
 We'll step throught the scenarios one-by-one.
 
-### 1. asyncio: Cancellable executor jobs
+### 1. asyncio: Cancellable executor jobs (and timeouts!)
 
 We covered this in the demo section. But I just want to highlight a few
 things:
 
 ```python
-import cancelkulture
+from cancelkulture import ProcessPoolExecutor, ProcessCancelTimeout
 
 
-exe = cancelkulture.ProcessPoolExecutor()
-
-
-async def awork():
+async def work():
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
-        exe,
+        ProcessPoolExecutor(),
 
         # Look here
         partial(time.sleep, 10.0),
 
         # And here
-        cancelkulture.ProcessCancelTimeout(0.0),
+        ProcessCancelTimeout(5.0),
     )
 ```
 
@@ -139,6 +158,12 @@ I check every value in `*args` to see whether the type matches
 on of the types used by `cancelkulture`. So that's why
 the classes.
 
+Now is also a good time to discuss what the two timeouts do:
+
+- `ProcessTimeout`: This is the allowed time for the job.
+- `ProcessCancelTimeout`: This is the allowed time for the job
+  *after* the job has been cancelled (e.g. `fut.cancel()`).
+
 ### 2. A richer ProcessPoolExecutor 
 
 The subclass provided by this package should be a drop-in
@@ -146,8 +171,11 @@ replacement for the one in `concurrent.futures`, but it
 has 2 extra tricks. The first is that jobs can be 
 cancelled.
 
+#### Cancellation
+
 This is an example from one of the tests. It uses a background
-thread to cancel a running future.
+thread to cancel a running future. This example demonstrates
+cancellation.
 
 ```python
 import time
@@ -163,9 +191,9 @@ def delayed_cancel(fut, delay):
 
 with cancelkulture.ProcessPoolExecutor() as exe:
     fut = exe.submit(
-        work,
+        time.sleep,
         10.0,
-        after_cancel_timeout_=cancelkulture.ProcessCancelTimeout(0.0),
+        cancelkulture.ProcessCancelTimeout(0.0),
     )
     t = threading.Thread(target=delayed_cancel, args=(fut, 0.5,), daemon=True)
     t.start()
@@ -176,6 +204,59 @@ with cancelkulture.ProcessPoolExecutor() as exe:
 
 The job submitted to the executor would like to run for 10 seconds, but
 we cancel the future after 0.5 seconds.
+
+#### Timeouts
+
+With timeouts, there's more nuance. First, an example that shows how
+timeouts work, and then we'll discuss why I didn't use the existing
+timeout API when getting the result in `fut.result(timeout)`.
+
+
+```python
+    with cancelkulture.ProcessPoolExecutor() as exe:
+        fut = exe.submit(
+            time.sleep,
+            10.0,
+            cancelkulture.ProcessTimeout(0.5),
+        )
+        with pytest.raises(cancelkulture.ProcessTimeoutError):
+            _ = fut.result()
+```
+
+The above is the way it currently works. However, if you're familiar
+with the stdlib `concurrent.futures` module, you will be aware that
+there is an existing feature to set a `timeout` parameter on the
+result call itself. For example, *I could have* gone with something
+like this:
+
+```python
+
+    ### HYPOTHETICAL CODE ###
+
+    with cancelkulture.ProcessPoolExecutor() as exe:
+        fut = exe.submit(
+            time.sleep,
+            10.0,
+
+                  <- See, no timeout parameter here
+
+        )
+        with pytest.raises(concurrent.futures.TimeoutError):
+            _ = fut.result(timeout=5.0)
+```
+
+So why didn't I do this? It's because I didn't want to change
+compatibility with the stdlib `ProcessPoolExecutor` code.
+In the original, the timeout error that is raised does not
+affect the running task at all. It doesn't kill it, the task
+goes on running. My fear was that it might become difficult
+to know which executor is being used where, in more complicated
+programs with lots of moving parts.
+
+Thus, the current design is that even for the `ProcessPoolExecutor`
+in `cancelkulture`, using `fut.result(timeout)` will not kill the
+task if that timeout is reached. It is to be used only as an
+alert, just like in the stdlib version.
 
 ### 3. Getting cancellation in stdlib ProcessPoolExecutor
 
