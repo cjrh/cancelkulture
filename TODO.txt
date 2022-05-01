@@ -1,4 +1,0 @@
-- remove the shutdown-timeout parameter
-- change tests to send a cancel-timeout message in (to cancel)
-- add tests for the Executor wrapper.
-- make default timeout None

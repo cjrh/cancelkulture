@@ -140,7 +140,6 @@ def test_new_executor_timeout():
 
 
 def delayed_cancel(fut, delay):
-    print("delayed_cancel!")
     time.sleep(delay)
     fut.cancel()
 
