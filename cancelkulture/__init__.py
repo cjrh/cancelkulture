@@ -4,7 +4,8 @@ TBD
 """
 import logging
 import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor
+from multiprocessing.connection import Connection
+import concurrent.futures
 from typing import Optional
 import time
 
@@ -12,10 +13,11 @@ import psutil
 
 
 __version__ = "0.0.1"
+__all__ = ["ProcessCancelledError", "ProcessTimeoutError", "killable_wrapper"]
 logger = logging.getLogger(__name__)
 
 
-class JobsShutdownError(Exception):
+class ProcessCancelledError(Exception):
     """Raised when the killable_wrapper process terminates itself due
     to a shutdown event.
 
@@ -25,7 +27,7 @@ class JobsShutdownError(Exception):
     pass
 
 
-class JobsTimeoutError(TimeoutError):
+class ProcessTimeoutError(concurrent.futures.TimeoutError):
     """Raised when the killable_wrapper process terminates itself due
     to hitting a timeout limit.
 
@@ -39,8 +41,7 @@ def killable_wrapper(
         fn,
         *args,
         killable_wrapper_timeout: float = 3600 * 8,
-        killable_wrapper_shutdown_pipe: Optional[mp.Pipe] = None,
-        killable_wrapper_shutdown_timeout: float = 5.0,
+        killable_wrapper_cancel_pipe: Optional[Connection] = None,
         **kwargs
 ):
     """This is a "wrapper" function that can be used to wrap other functions
@@ -59,10 +60,13 @@ def killable_wrapper(
         import multiprocessing as mp
         import signal
 
-        shutdown_pipe = mp.Pipe()
+        cancel_sender, cancel_receiver = mp.Pipe()
 
         def signal_handler(signum, frame):
-            shutdown_pipe.send(None)
+            cancel_sender.send(
+                dict(cancel_timeout=5.0)
+
+            )
 
         signal.signal(signal.SIGTERM, handler)
 
@@ -77,13 +81,13 @@ def killable_wrapper(
                 90.0        <- params for the work function
 
                 killable_wrapper_timeout=90,
-                killable_wrapper_shutdown_pipe=shutdown_pipe,
+                killable_wrapper_shutdown_pipe=cancel_receiver,
             )
             try:
                 result = fut.result()
-            except JobsShutdownError:
+            except ProcessCancelledError:
                 print("Task ended because the system is shutting down")
-            except JobsTimeoutError:
+            except ProcessTimeoutError:
                 print("Task ended because it timed out")
 
     """
@@ -99,49 +103,59 @@ def killable_wrapper(
     # initializer function to set up global configuration (e.g. tracing)
     # which we would like to reuse here.
     ctx = mp.get_context("fork")
-    exe = ProcessPoolExecutor(max_workers=1, mp_context=ctx)
+    exe = concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=ctx)
 
-    sdpipe = killable_wrapper_shutdown_pipe  # alias for brevity
+    sdpipe = killable_wrapper_cancel_pipe  # alias for brevity
     fut = exe.submit(fn, *args, **kwargs)
     t0 = time.monotonic()
 
-    t0_shutdown = 0
+    # The time at which the cancellation request was received
+    t0_cancel = 0
+    # The duration to wait before hard-killing the subprocess
+    cancel_timeout = 0
 
     def time_left() -> float:
         return time.monotonic() - t0 < killable_wrapper_timeout
 
     def time_left_shutdown() -> float:
-        return time.monotonic() - t0_shutdown < killable_wrapper_shutdown_timeout
+        if not t0_cancel:
+            return True
+        else:
+            return time.monotonic() - t0_cancel < cancel_timeout
 
     try:
         while time_left() and time_left_shutdown():
-            print(f"{time.monotonic()=}")
             try:
                 # Wait for a result in slices of 1 second. This is a form
                 # of polling, which gives us the opportunity to assess
                 # timeouts or the shutdown signal.
                 return fut.result(timeout=1.0)
-            except TimeoutError:
+            except concurrent.futures.TimeoutError:
                 # This timeout is just on the polling `fut.result`, it isn't
                 # an error. This is our chance to check whether the
                 # shutdown pipe has received any data.
-                if not t0_shutdown:
+                if not t0_cancel:
                     if sdpipe and sdpipe.poll():
-                        t0_shutdown = time.monotonic()
+                        payload = sdpipe.recv()
+                        logger.warning(f"{payload=}")
+                        t0_cancel = time.monotonic()
+                        cancel_timeout = payload["cancel_timeout"]
                 continue
         else:
             if not time_left_shutdown():
                 logger.info("Shutting down jobs task")
-                raise JobsShutdownError
+                raise ProcessCancelledError
             else:
                 logger.error(f"Jobs task hit timeout")
-                raise JobsTimeoutError
+                raise ProcessTimeoutError
     finally:
         _kill_all_processes_and_subprocesses(exe)
         exe.shutdown(False, cancel_futures=True)
 
 
-def _kill_all_processes_and_subprocesses(executor: ProcessPoolExecutor):
+def _kill_all_processes_and_subprocesses(
+    executor: concurrent.futures.ProcessPoolExecutor,
+):
     for pid, p in executor._processes.items():
         for child in psutil.Process(pid).children(recursive=True):
             logger.debug(f"Killing child {child.pid} of {pid}")
@@ -150,3 +164,125 @@ def _kill_all_processes_and_subprocesses(executor: ProcessPoolExecutor):
         logger.debug(f"Killing process {pid}")
         p.kill()
 
+
+class ProcessTimeout:
+    def __init__(self, value):
+        self.value = value
+
+
+class ProcessCancelTimeout:
+    def __init__(self, value):
+        self.value = value
+
+
+class ProcessPoolExecutor(
+    concurrent.futures.ProcessPoolExecutor,
+):
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self._shutdown_timeout = None
+
+    def submit(
+        self,
+        fn,
+        /,
+        *args,
+        timeout_=ProcessTimeout(3600.0),
+        after_cancel_timeout_=ProcessCancelTimeout(5.0),
+        **kwargs,
+    ):
+        timeout_ = timeout_.value
+        after_cancel_timeout_ = after_cancel_timeout_.value
+
+        # Because `asyncio.run_in_executor` only allows
+        # passing *args, and it literally calls this `submit`
+        # method with those *args, we'll have to fish out
+        # timeouts, if set, and overwrite the defaults.
+        tmp_args = []
+        for a in args:
+            if isinstance(a, ProcessTimeout):
+                timeout_ = a.value
+            elif isinstance(a,  ProcessCancelTimeout):
+                after_cancel_timeout_ = a.value
+            else:
+                tmp_args.append(a)
+
+        args = tmp_args
+
+        task_sender, task_receiver = mp.Pipe()
+
+        fut = super().submit(
+            killable_wrapper,
+            fn, *args, **kwargs,
+            killable_wrapper_timeout=timeout_,
+            killable_wrapper_cancel_pipe=task_receiver,
+        )
+
+        parent = self
+
+        def custom_cancel_method(self):
+            logger.warning(f"Calling my custom cancel")
+            from concurrent.futures._base import (
+                RUNNING,
+                FINISHED,
+                CANCELLED,
+                CANCELLED_AND_NOTIFIED,
+            )
+            """Cancel the future if possible.
+
+            Returns True if the future was cancelled, False otherwise. A future
+            cannot be cancelled if it is running or has already completed.
+            """
+            with self._condition:
+                if self._state in [RUNNING, FINISHED]:
+                    ############## MY CUSTOMIZATIONS ###############
+                    if self._state in [RUNNING]:
+                        if parent._shutdown_timeout is not None:
+                            timeout = parent._shutdown_timeout
+                        else:
+                            timeout = after_cancel_timeout_
+
+                        task_sender.send(
+                            dict(cancel_timeout=timeout),
+                        )
+                    ############## MY CUSTOMIZATIONS ###############
+
+                    return False
+
+                if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:
+                    return True
+
+                self._state = CANCELLED
+                self._condition.notify_all()
+
+            self._invoke_callbacks()
+            return True
+
+        from types import MethodType
+        # YOLO
+        fut.cancel = MethodType(custom_cancel_method, fut)
+
+        # def done_callback(fut):
+        #     logger.warning(f"Inside done callback: {fut=}")
+        #     if fut.cancelled():
+        #         if self._shutdown_timeout is not None:
+        #             timeout = self._shutdown_timeout
+        #         else:
+        #             timeout = after_cancel_timeout_
+
+        #         task_sender.send(
+        #             dict(cancel_timeout=timeout),
+        #         )
+
+        # fut.add_done_callback(done_callback)
+        return fut
+
+    def shutdown(self, wait=True, *, cancel_futures=False, timeout=5.0):
+        # This will be picked up in the `done_callback` of each task
+        # future.
+        self._shutdown_timeout = timeout
+        super().shutdown(wait, cancel_futures=cancel_futures)
