@@ -1,7 +1,7 @@
 # cancelkulture
-Cancellable subprocesses
+Cancellable subprocesses in Python (including for asyncio run_in_executor)
 
-## ⚠️  Warning - this is pretty experimental ⚠️
+## ⚠️  Warning - texperimental ⚠️
 
 Do not use this for anything important if you don't
 understand what it's doing.
