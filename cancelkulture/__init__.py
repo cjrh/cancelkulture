@@ -267,6 +267,9 @@ class ProcessPoolExecutor(
         fut.cancel = MethodType(custom_cancel_method, fut)
         return fut
 
-    def shutdown(self, wait=True, *, cancel_futures=False, timeout=5.0):
+    def shutdown(self, wait=True, *, cancel_futures=False, timeout: Optional[float] = None):
+        """If you specify a timeout, any pending tasks still running after
+        that timeout will be killed. If no timeout is specified, this method
+        is identical to concurrent.futures.ProcessPoolExecutor."""
         self._shutdown_timeout = timeout
         super().shutdown(wait, cancel_futures=cancel_futures)
