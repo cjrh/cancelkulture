@@ -1,0 +1,33 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "cancelkulture"
+readme = "README.md"
+dynamic = ["version", "description"]
+authors = [
+    {name = "Caleb Hattingh", email = "caleb.hattingh@gmail.com"}
+
+]
+classifiers = [
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent"
+    ]
+license = {file = "LICENSE"}
+requires-python = ">=3.7"
+# keywords
+dependencies = [
+    "psutil >= 5"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov"
+]
