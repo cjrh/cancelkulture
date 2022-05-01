@@ -192,7 +192,7 @@ class ProcessPoolExecutor(
         /,
         *args,
         timeout_=ProcessTimeout(3600.0),
-        after_cancel_timeout_=ProcessCancelTimeout(5.0),
+        after_cancel_timeout_=ProcessCancelTimeout(0.0),
         **kwargs,
     ):
         timeout_ = timeout_.value
@@ -265,24 +265,8 @@ class ProcessPoolExecutor(
         from types import MethodType
         # YOLO
         fut.cancel = MethodType(custom_cancel_method, fut)
-
-        # def done_callback(fut):
-        #     logger.warning(f"Inside done callback: {fut=}")
-        #     if fut.cancelled():
-        #         if self._shutdown_timeout is not None:
-        #             timeout = self._shutdown_timeout
-        #         else:
-        #             timeout = after_cancel_timeout_
-
-        #         task_sender.send(
-        #             dict(cancel_timeout=timeout),
-        #         )
-
-        # fut.add_done_callback(done_callback)
         return fut
 
     def shutdown(self, wait=True, *, cancel_futures=False, timeout=5.0):
-        # This will be picked up in the `done_callback` of each task
-        # future.
         self._shutdown_timeout = timeout
         super().shutdown(wait, cancel_futures=cancel_futures)
