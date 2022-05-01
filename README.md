@@ -1,7 +1,7 @@
 # cancelkulture
-Cancellable subprocesses in Python (including for asyncio run_in_executor)
+Cancellable subprocesses with timeouts in Python (including for asyncio run_in_executor)
 
-## ⚠️  Warning - texperimental ⚠️
+## ⚠️  Warning - experimental ⚠️
 
 Do not use this for anything important if you don't
 understand what it's doing.
