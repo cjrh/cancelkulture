@@ -1,5 +1,5 @@
 # cancelkulture
-Cancellable subprocesses with timeouts in Python (including for asyncio run_in_executor)
+Cancellable subprocesses with timeouts in Python (including for `asyncio.run_in_executor`)
 
 ## ⚠️  Warning - experimental ⚠️
 
@@ -31,7 +31,7 @@ async def awork():
 
 async def main():
     try:
-        await asyncio.wait_for(awork(), 5.0 
+        await asyncio.wait_for(awork(), 5.0)
     except asyncio.TimeoutError:
         print('Timed out!')
 
@@ -56,8 +56,8 @@ async def main():
     t = asyncio.create_task(awork())
 
     # Let's wait a bit and cancel that task 
-    await asyncio.sleep(5.0)
-    t.cancel()
+    loop = asyncio.get_running_loop()
+    loop.call_later(5.0, t.cancel)
 
     try:
         await t
