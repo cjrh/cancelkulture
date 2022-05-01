@@ -9,8 +9,8 @@ understand what it's doing.
 ## Demo
 
 You know how in `asyncio` if you run something in a process pool executor
-using `run_executor()`, and then you try to cancel the task, BUT THE
-UNDERLYING PROCESS DOESN'T STOP?
+using `run_executor()`, and then you try to cancel the task, but the
+underlying process doesn't actually stop?
 
 LET'S FIX THAT
 
@@ -58,8 +58,8 @@ Haha lolno, we just `SIGKILL` the process running that task.
 You're going to want to make sure your jobs are idempotent because
 in practice they will sometimes need to be restarted.
 
-I know it sounds bad to SIGKILL a running process, but to be
-completely honest, in production systems hardware and software
+I know it sounds bad to SIGKILL a running process, but in
+reality, in production systems hardware and software
 (and humans) cause hard resets all the time. An extremely common
 example is simply redeploying a new version of a running
 application. Yes, your app will get a SIGTERM from Kubernetes,
