@@ -56,7 +56,7 @@ asyncio.run(main())
 Haha lolno, we just `SIGKILL` the process running that task.
 
 You're going to want to make sure your jobs are idempotent because
-in practice they will need to be re-executed.
+in practice they will sometimes need to be restarted.
 
 I know it sounds bad to SIGKILL a running process, but to be
 completely honest, in production systems hardware and software
@@ -90,12 +90,14 @@ through the use-cases:
 
 We'll step throught the scenarios one-by-one.
 
-### asyncio: Cancellable executor jobs
+### 1. asyncio: Cancellable executor jobs
 
 We covered this in the demo section. But I just want to highlight a few
 things:
 
 ```python
+import cancelkulture
+
 
 exe = cancelkulture.ProcessPoolExecutor()
 
@@ -148,9 +150,16 @@ This is an example from one of the tests. It uses a background
 thread to cancel a running future.
 
 ```python
+import time
+import pytest
+import threading
+import cancelkulture
+
+
 def delayed_cancel(fut, delay):
     time.sleep(delay)
     fut.cancel()
+
 
 with cancelkulture.ProcessPoolExecutor() as exe:
     fut = exe.submit(
@@ -166,6 +175,49 @@ with cancelkulture.ProcessPoolExecutor() as exe:
 ```
 
 The job submitted to the executor would like to run for 10 seconds, but
-we cancel the future after 0.5 seconds. Note that the exception 
+we cancel the future after 0.5 seconds.
 
+### 3. Getting cancellation in stdlib ProcessPoolExecutor
+
+This one is messy, but it also leads a path to explain how `cancelkulture`
+is made. The proverbial "sausage".
+
+Again, an example from the tests:
+
+
+```python
+import concurrent.futures
+import multiprocessing
+import time
+import cancelkulture
+
+
+ctx = multiprocessing.get_context("spawn")
+with concurrent.futures.ProcessPoolExecutor(
+    mp_context=ctx,
+    initializer=initializer,
+) as exe:
+    fut = exe.submit(
+        cancelkulture.killable_wrapper,
+        time.sleep,
+        10.0,
+        killable_wrapper_timeout=5.0,
+    )
+
+    try:
+        fut.result()
+    except cancelkulture.ProcessTimeoutError:
+        print('This happens after 5 seconds')
+
+```
+
+Observations:
+- We're using the vanilla stdlib `ProcessPoolExecutor` here
+- We're using the "spawn" context for subprocesses. All three methods
+  provided by the multiprocessing module work, but I'm highlighting
+  "spawn" because that one is the recommended one.
+
+Here you can see we're passing `cancelkulture.killable_wrapper` as
+the `target` to the executor. This wrapper will be responsible for
+executing the actual function, in this example `time.sleep()`.
 
