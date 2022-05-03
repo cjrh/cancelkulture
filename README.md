@@ -4,9 +4,6 @@
 [![ci](https://img.shields.io/github/tag/cjrh/cancelkulture.svg)](https://img.shields.io/github/tag/cjrh/cancelkulture.svg)
 [![ci](https://img.shields.io/badge/install-pip%20install%20cancelkulture-ff69b4.svg)](https://img.shields.io/badge/install-pip%20install%20cancelkulture-ff69b4.svg)
 [![ci](https://img.shields.io/pypi/v/cancelkulture.svg)](https://pypi.org/project/cancelkulture/)
-[![ci](https://github.com/cjrh/cancelkulture/workflows/Python%20application/badge.svg)](https://github.com/cjrh/cancelkulture/actions)
-[![ci](https://github.com/cjrh/cancelkulture/workflows/Python%20application/badge.svg)](https://github.com/cjrh/cancelkulture/actions)
-
 
 # cancelkulture
 Cancellable subprocesses with timeouts in Python (including for `asyncio.run_in_executor`)

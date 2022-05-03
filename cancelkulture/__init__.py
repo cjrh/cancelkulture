@@ -2,6 +2,7 @@
 TBD
 
 """
+
 import logging
 import multiprocessing as mp
 from multiprocessing.connection import Connection
@@ -102,7 +103,12 @@ def killable_wrapper(
     # in certain situations like where the parent PPE might have had an
     # initializer function to set up global configuration (e.g. tracing)
     # which we would like to reuse here.
-    ctx = mp.get_context("fork")
+    import platform
+    if platform.system() == "Windows":
+        ctx = None
+    else:
+        ctx = mp.get_context("fork")
+
     exe = concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=ctx)
 
     sdpipe = killable_wrapper_cancel_pipe  # alias for brevity
