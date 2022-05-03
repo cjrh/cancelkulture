@@ -74,8 +74,8 @@ def pool(
 
 
 @pytest.mark.parametrize('mp_context', [
-    pytest.param("fork", pytest.mark.skipif(WIN)),
-    pytest.param("forkserver", pytest.mark.skipif(WIN)),
+    pytest.param("fork", marks=pytest.mark.skipif(WIN, reason="Windows")),
+    pytest.param("forkserver", marks=pytest.mark.skipif(WIN, reason="Windows")),
     "spawn",
 ])
 @pytest.mark.parametrize('worker_fn', [
@@ -90,8 +90,8 @@ def test_success(mp_context, worker_fn):
 
 
 @pytest.mark.parametrize('mp_context', [
-    pytest.param("fork", pytest.mark.skipif(WIN)),
-    pytest.param("forkserver", pytest.mark.skipif(WIN)),
+    pytest.param("fork", marks=pytest.mark.skipif(WIN, reason="Windows")),
+    pytest.param("forkserver", marks=pytest.mark.skipif(WIN, reason="Windows")),
     "spawn",
 ])
 @pytest.mark.parametrize('worker_fn', [
@@ -107,8 +107,8 @@ def test_timeout(mp_context, worker_fn):
 
 
 @pytest.mark.parametrize('mp_context', [
-    pytest.param("fork", pytest.mark.skipif(WIN)),
-    pytest.param("forkserver", pytest.mark.skipif(WIN)),
+    pytest.param("fork", marks=pytest.mark.skipif(WIN, reason="Windows")),
+    pytest.param("forkserver", marks=pytest.mark.skipif(WIN, reason="Windows")),
     "spawn",
 ])
 @pytest.mark.parametrize('worker_fn', [
