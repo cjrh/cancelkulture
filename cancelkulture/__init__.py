@@ -282,4 +282,8 @@ class ProcessPoolExecutor(
         that timeout will be killed. If no timeout is specified, this method
         is identical to concurrent.futures.ProcessPoolExecutor."""
         self._shutdown_timeout = timeout
-        super().shutdown(wait, cancel_futures=cancel_futures)
+        if sys.version_info < (3, 9):
+            kwargs = dict()
+        else:
+            kwargs = dict(cancel_futures=False)
+        super().shutdown(wait, **kwargs)
