@@ -157,7 +157,7 @@ def killable_wrapper(
                 raise ProcessTimeoutError
     finally:
         _kill_all_processes_and_subprocesses(exe)
-        if sys.version_info() < (3, 9):
+        if sys.version_info < (3, 9):
             kwargs = dict()
         else:
             kwargs = dict(cancel_futures=False)
