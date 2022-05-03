@@ -187,7 +187,6 @@ def test_asyncio_timeout():
 
     async def awork():
         loop = asyncio.get_running_loop()
-        loop.call_later()
         return await loop.run_in_executor(
             exe,
             partial(work, 10.0),
