@@ -161,7 +161,7 @@ def killable_wrapper(
             kwargs = dict()
         else:
             kwargs = dict(cancel_futures=False)
-        exe.shutdown(False, **kwargs)
+        # exe.shutdown(False, **kwargs)
 
 
 def _kill_all_processes_and_subprocesses(
