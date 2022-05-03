@@ -3,6 +3,7 @@ TBD
 
 """
 
+import sys
 import logging
 import multiprocessing as mp
 from multiprocessing.connection import Connection
@@ -156,7 +157,11 @@ def killable_wrapper(
                 raise ProcessTimeoutError
     finally:
         _kill_all_processes_and_subprocesses(exe)
-        exe.shutdown(False, cancel_futures=True)
+        if sys.version_info() < (3, 9):
+            kwargs = dict()
+        else:
+            kwargs = dict(cancel_futures=False)
+        exe.shutdown(False, **kwargs)
 
 
 def _kill_all_processes_and_subprocesses(
