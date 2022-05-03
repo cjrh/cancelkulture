@@ -189,7 +189,6 @@ class ProcessPoolExecutor(
     def submit(
         self,
         fn,
-        /,
         *args,
         timeout_=ProcessTimeout(3600.0),
         after_cancel_timeout_=ProcessCancelTimeout(0.0),
