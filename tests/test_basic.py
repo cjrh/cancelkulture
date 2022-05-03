@@ -85,7 +85,7 @@ def pool(
     work_with_internal_executor,
 ])
 def test_success(mp_context, worker_fn):
-    with pool(worker_fn, 0.1, 2.0, None, mp_context=mp_context) as fut:
+    with pool(worker_fn, 0.1, 10.0, None, mp_context=mp_context) as fut:
             assert fut.result() == 123
 
 

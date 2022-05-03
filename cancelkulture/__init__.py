@@ -156,7 +156,11 @@ def killable_wrapper(
                 logger.error(f"Jobs task hit timeout")
                 raise ProcessTimeoutError
     finally:
-        _kill_all_processes_and_subprocesses(exe)
+        try:
+            _kill_all_processes_and_subprocesses(exe)
+        except:
+            pass  # Nothing good can come of looking at what emerges here.
+
         if sys.version_info < (3, 9):
             kwargs = dict()
         else:
