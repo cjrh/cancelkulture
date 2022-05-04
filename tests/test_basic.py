@@ -38,7 +38,7 @@ def work_with_subprocess(duration: float) -> int:
 
 
 def work_with_internal_executor(duration: float) -> int:
-    with concurrent.futures.ProcessPoolExecutor(max_workers=10) as exe:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as exe:
         results = exe.map(work, [duration] * 10)
 
     return 123
