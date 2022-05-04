@@ -2,6 +2,8 @@
 TBD
 
 """
+
+import sys
 import logging
 import multiprocessing as mp
 from multiprocessing.connection import Connection
@@ -102,7 +104,12 @@ def killable_wrapper(
     # in certain situations like where the parent PPE might have had an
     # initializer function to set up global configuration (e.g. tracing)
     # which we would like to reuse here.
-    ctx = mp.get_context("fork")
+    import platform
+    if platform.system() == "Windows":
+        ctx = None
+    else:
+        ctx = mp.get_context("fork")
+
     exe = concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=ctx)
 
     sdpipe = killable_wrapper_cancel_pipe  # alias for brevity
@@ -149,8 +156,16 @@ def killable_wrapper(
                 logger.error(f"Jobs task hit timeout")
                 raise ProcessTimeoutError
     finally:
-        _kill_all_processes_and_subprocesses(exe)
-        exe.shutdown(False, cancel_futures=True)
+        try:
+            _kill_all_processes_and_subprocesses(exe)
+        except:
+            pass  # Nothing good can come of looking at what emerges here.
+
+        if sys.version_info < (3, 9):
+            kwargs = dict()
+        else:
+            kwargs = dict(cancel_futures=False)
+        # exe.shutdown(False, **kwargs)
 
 
 def _kill_all_processes_and_subprocesses(
@@ -189,7 +204,6 @@ class ProcessPoolExecutor(
     def submit(
         self,
         fn,
-        /,
         *args,
         timeout_=ProcessTimeout(3600.0),
         after_cancel_timeout_=ProcessCancelTimeout(0.0),
@@ -272,4 +286,8 @@ class ProcessPoolExecutor(
         that timeout will be killed. If no timeout is specified, this method
         is identical to concurrent.futures.ProcessPoolExecutor."""
         self._shutdown_timeout = timeout
-        super().shutdown(wait, cancel_futures=cancel_futures)
+        if sys.version_info < (3, 9):
+            kwargs = dict()
+        else:
+            kwargs = dict(cancel_futures=False)
+        super().shutdown(wait, **kwargs)

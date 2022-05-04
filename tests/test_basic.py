@@ -5,9 +5,13 @@ import concurrent.futures
 from contextlib import contextmanager
 import multiprocessing as mp
 import itertools
+import platform
 
 import pytest
 import cancelkulture
+
+
+WIN = platform.system() == 'Windows'
 
 
 def work(duration: float) -> int:
@@ -34,7 +38,7 @@ def work_with_subprocess(duration: float) -> int:
 
 
 def work_with_internal_executor(duration: float) -> int:
-    with concurrent.futures.ProcessPoolExecutor(max_workers=10) as exe:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as exe:
         results = exe.map(work, [duration] * 10)
 
     return 123
@@ -70,8 +74,8 @@ def pool(
 
 
 @pytest.mark.parametrize('mp_context', [
-    "fork",
-    "forkserver",
+    pytest.param("fork", marks=pytest.mark.skipif(WIN, reason="Windows")),
+    pytest.param("forkserver", marks=pytest.mark.skipif(WIN, reason="Windows")),
     "spawn",
 ])
 @pytest.mark.parametrize('worker_fn', [
@@ -81,13 +85,13 @@ def pool(
     work_with_internal_executor,
 ])
 def test_success(mp_context, worker_fn):
-    with pool(worker_fn, 0.1, 2.0, None, mp_context=mp_context) as fut:
+    with pool(worker_fn, 0.1, 10.0, None, mp_context=mp_context) as fut:
             assert fut.result() == 123
 
 
 @pytest.mark.parametrize('mp_context', [
-    "fork",
-    "forkserver",
+    pytest.param("fork", marks=pytest.mark.skipif(WIN, reason="Windows")),
+    pytest.param("forkserver", marks=pytest.mark.skipif(WIN, reason="Windows")),
     "spawn",
 ])
 @pytest.mark.parametrize('worker_fn', [
@@ -103,8 +107,8 @@ def test_timeout(mp_context, worker_fn):
 
 
 @pytest.mark.parametrize('mp_context', [
-    "fork",
-    "forkserver",
+    pytest.param("fork", marks=pytest.mark.skipif(WIN, reason="Windows")),
+    pytest.param("forkserver", marks=pytest.mark.skipif(WIN, reason="Windows")),
     "spawn",
 ])
 @pytest.mark.parametrize('worker_fn', [
