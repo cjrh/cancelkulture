@@ -38,8 +38,8 @@ jobs:
     - name: Test with pytest
       run: |
         pip install pytest
-        flit install --extras=all
-        pytest --cov cancelkulture --cov-report term
+        flit install --symlink --extras=all
+        pytest --cov . --cov-report term
 
     - name: Extract branch name
       shell: bash
@@ -49,16 +49,9 @@ jobs:
       env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           COVERALLS_PARALLEL: "true"
-      # if: matrix.os == 'ubuntu-latest'
       run: |
         coverage combine
         coveralls --service=github
-    # - name: Finish parallel coverage
-    #   if: matrix.os == 'ubuntu-latest'
-    #   env:
-    #       GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-    #   run: |
-    #     coveralls --service=github --finish
 
   coveralls:
       name: Indicate completion to coveralls.io
