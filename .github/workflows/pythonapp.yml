@@ -39,7 +39,7 @@ jobs:
       run: |
         pip install pytest
         flit install --extras=all
-        pytest --cov .
+        pytest --cov cancelkulture
 
     - name: Extract branch name
       shell: bash
@@ -51,6 +51,7 @@ jobs:
           COVERALLS_PARALLEL: "true"
       # if: matrix.os == 'ubuntu-latest'
       run: |
+        coverage combine
         coveralls --service=github
     # - name: Finish parallel coverage
     #   if: matrix.os == 'ubuntu-latest'
