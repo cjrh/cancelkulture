@@ -39,7 +39,7 @@ jobs:
       run: |
         pip install pytest
         flit install --extras=all
-        pytest --cov cancelkulture
+        pytest --cov cancelkulture --cov-report term
 
     - name: Extract branch name
       shell: bash
