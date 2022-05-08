@@ -49,11 +49,26 @@ jobs:
       env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           COVERALLS_PARALLEL: "true"
-      if: matrix.os == 'ubuntu-latest'
+      # if: matrix.os == 'ubuntu-latest'
       run: |
         coveralls --service=github
-    - name: Finish parallel coverage
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        coveralls --service=github --finish
+    # - name: Finish parallel coverage
+    #   if: matrix.os == 'ubuntu-latest'
+    #   env:
+    #       GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+    #   run: |
+    #     coveralls --service=github --finish
+
+  coveralls:
+      name: Indicate completion to coveralls.io
+      needs: build
+      runs-on: ubuntu-latest
+      container: python:3-slim
+      steps:
+      - name: Finished
+        run: |
+          pip3 install --upgrade coveralls
+          coveralls --service=github --finish
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
