@@ -38,8 +38,8 @@ jobs:
     - name: Test with pytest
       run: |
         pip install pytest
-        flit install --extras=all
-        pytest --cov .
+        flit install --symlink --extras=all
+        pytest --cov . --cov-report term
 
     - name: Extract branch name
       shell: bash
@@ -47,15 +47,22 @@ jobs:
       id: extract_branch
     - name: Upload coverage
       env:
-          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-          COVERALLS_PARALLEL: "true"
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        coveralls
-    - name: Finish parallel coverage
-      env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-      if: matrix.os == 'ubuntu-latest'
+          COVERALLS_PARALLEL: "true"
       run: |
-        coveralls --finish
+        coverage combine
+        coveralls --service=github
+
+  coveralls:
+      name: Indicate completion to coveralls.io
+      needs: build
+      runs-on: ubuntu-latest
+      container: python:3-slim
+      steps:
+      - name: Finished
+        run: |
+          pip3 install --upgrade coveralls
+          coveralls --service=github --finish
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
