@@ -6,6 +6,7 @@
 [![pypi](https://img.shields.io/pypi/v/cancelkulture.svg)](https://pypi.org/project/cancelkulture/)
 
 
+| ARCHIVED |
 | I am no longer working on this project. It was an experiment which was useful for insight, but now this project is entirely superseded by [Deadpool](https://github.com/cjrh/deadpool) |
 
 # cancelkulture
