@@ -5,6 +5,9 @@
 [![pip](https://img.shields.io/badge/install-pip%20install%20cancelkulture-ff69b4.svg)](https://img.shields.io/badge/install-pip%20install%20cancelkulture-ff69b4.svg)
 [![pypi](https://img.shields.io/pypi/v/cancelkulture.svg)](https://pypi.org/project/cancelkulture/)
 
+
+| I am no longer working on this project. It was an experiment which was useful for insight, but now this project is entirely superseded by [Deadpool](https://github.com/cjrh/deadpool) |
+
 # cancelkulture
 Cancellable subprocesses with timeouts in Python (including for `asyncio.run_in_executor`)
 
